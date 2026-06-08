@@ -1,4 +1,4 @@
-# C³ — Capability Cognition Calibrator
+# Capability Cognition Calibrator
 
 OpenClaw skill for AI capability boundary disclosure.
 
