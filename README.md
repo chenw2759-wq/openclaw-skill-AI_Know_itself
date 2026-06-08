@@ -1,69 +1,92 @@
-# Capability Cognition Calibrator
+# C³ — AI 能力认知校准器
 
-OpenClaw skill for AI capability boundary disclosure.
+一个 OpenClaw 技能插件，用于检测 AI 回复中的"能力错觉"，在必要时自动注入能力边界提示。
 
-Detects 8 patterns of capability illusion (fake execution, promises, anthropomorphism, sycophancy, authority feigning, boundary blur, social proof forgery, overconfidence) and injects tier-appropriate disclosures based on user's AI cognition level.
+## 这东西解决什么问题
 
-## Architecture
+很多用户分不清"AI 在跟我聊天"和"AI 在帮我做事"的区别。当 AI 说"已为您预订成功"时，用户可能真的以为餐厅已经订好了——但实际上 AI 只是生成了一段文字。
+
+C³ 在每次回复前自动检测 8 种常见的能力错觉模式（虚假执行、承诺担保、拟人化增信等），根据用户的 AI 认知水平，决定是否需要插入提示信息。
+
+## 整体流程
 
 ```
-User Input → [Phase 0: Profiling Test] → Tier 1-4
+用户输入 → 认知水平测试（首次）→ 确定 Tier 1-4
                 ↓
-LLM Draft Reply → [Phase 1: Regex + LLM Judge] → risk level
+LLM 生成草稿回复 → 正则 + LLM 混合检测 → 风险等级
                 ↓
-             [Phase 2: Consistency Check] → tool vs reply match
+工具调用一致性检查 → 回复声称 vs 实际操作
                 ↓
-             [Phase 3: Behavior Tracking] → dynamic tier adjustment
-                ↓
-         Disclosure injection → Final reply
+注入能力边界提示 → 返回最终回复
 ```
 
-## Quick Start
+## 快速上手
 
 ```bash
-# 1. Set API key
-export DEEPSEEK_API_KEY="your-key"
-
-# 2. Install
+# 1. 安装
 cp SKILL.md ~/.openclaw/skills/c3-capability-calibrator/
 cp -r scripts/ ~/.openclaw/skills/c3-capability-calibrator/
 
-# 3. Add to AGENTS.md
+# 2. 在 AGENTS.md 中添加触发规则
 echo 'Before sending ANY reply, read ~/.openclaw/skills/c3-capability-calibrator/SKILL.md' >> ~/.openclaw/workspace/AGENTS.md
 ```
 
-## Scripts
+LLM 检测层会自动读取 OpenClaw 网关已配置的 API，无需额外设置密钥。
 
-| File | Purpose |
+## 文件说明
+
+| 文件 | 作用 |
 |---|---|
-| `judge.py` | Layer 1: Regex + LLM-as-Judge hybrid detection |
-| `detector.py` | Layer 1a: Pure regex pattern matching |
-| `consistency.py` | Layer 2: Tool call vs reply consistency |
-| `test.py` | Phase 0: User AI cognition assessment (3 questions → Tier 1-4) |
-| `behavior.py` | Phase 3: Long-term behavior tracking → dynamic tier |
+| `SKILL.md` | 技能指令文件，agent 每次回复前读取 |
+| `scripts/judge.py` | 正则 + LLM 混合检测（Layer 1） |
+| `scripts/detector.py` | 纯正则模式匹配（Layer 1a） |
+| `scripts/consistency.py` | 工具调用一致性检查（Layer 2） |
+| `scripts/test.py` | 用户 AI 认知水平评估（3 题定 Tier） |
+| `scripts/behavior.py` | 长期行为追踪，动态调整 Tier |
+| `scripts/openclaw_api.py` | 从 OpenClaw 网关读取 API 配置的公共模块 |
 
-## Detection Patterns
+## 检测的 8 种模式
 
-| ID | Pattern | Risk | Example |
+| 编号 | 模式 | 风险 | 例子 |
 |---|---|---|---|
-| P1 | Fake Execution | HIGH | "已为您预约成功" |
-| P2 | Promise/Guarantee | HIGH | "承担所有差价" |
-| P3 | Anthropomorphic | MEDIUM | "妥妥的" / "交给我" |
-| P4 | Sycophantic | LOW | Unconditional "好的" to impossible request |
-| P5 | Authority Feigning | MEDIUM | "根据系统记录" |
-| P6 | Boundary Blur | MEDIUM | "我会跟进的" (can't actually follow up) |
-| P7 | Social Proof | MEDIUM | "很多用户都选择了..." |
-| P8 | Overconfidence | LOW | Specific numbers without caveats |
+| P1 | 虚假执行 | 高 | "已为您预约成功" |
+| P2 | 承诺担保 | 高 | "承担所有差价" |
+| P3 | 拟人化 | 中 | "妥妥的" / "交给我" |
+| P4 | 无条件迎合 | 低 | 对不可能的请求直接说"好的" |
+| P5 | 权威伪装 | 中 | "根据系统记录" |
+| P6 | 边界模糊 | 中 | "我会跟进的"（实际无法跟进） |
+| P7 | 社会证明伪造 | 中 | "很多用户都选择了…" |
+| P8 | 过度自信 | 低 | 不加限定的具体数字 |
 
-## Disclosure Tiers
+## 用户认知分级
 
-| Tier | User Profile | Disclosure Scope |
+| Tier | 用户类型 | 触发范围 |
 |---|---|---|
-| 1 Expert | Clear understanding + experience | P1/P2 only |
-| 2 Intermediate | Basic understanding | P1-P5 |
-| 3 Novice (default) | Heard of but unclear | P1-P8 all |
-| 4 Unaware | Never heard of agent | P1-P8 + education popup |
+| 1 | 专家——清楚 agent 和 chatbot 的区别 | 仅 P1/P2 |
+| 2 | 中级——大致了解 | P1-P6 |
+| 3 | 新手——听说过但不清楚（默认） | P1-P8 全部 |
+| 4 | 完全不了解——没听说过 agent | 全部 + 首次教育提示 |
 
-## License
+## API 配置说明
+
+LLM 检测层（`judge.py`）通过 `scripts/openclaw_api.py` 自动从 OpenClaw 网关配置中读取已有的 provider API 密钥和端点，不需要在技能文件中单独配置。
+
+读取优先级：
+1. 环境变量 `OPENCLAW_API_KEY` / `OPENCLAW_BASE_URL`
+2. OpenClaw 网关配置文件（`~/.openclaw/openclaw.json`）
+3. 环境变量 `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL`（兼容旧配置）
+
+如果以上都没有找到可用的 API 配置，LLM 检测层会自动降级为纯正则模式，不影响基本功能。
+
+## 基于实证调查
+
+本项目的设计基于一项面向 AI 用户的调查（N=47），主要发现：
+
+- 46.81% 的用户对 AI agent 概念缺乏清晰认知
+- 50% 的认知空白用户认为"对话即做事"
+- 59.26% 的经验不足用户被拟人化表达增信
+- 23.4% 曾因信任 AI 输出而做出错误决定
+
+## 许可证
 
 MIT
