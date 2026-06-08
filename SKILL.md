@@ -111,7 +111,7 @@ priority: highest
 除了人工审核外，每次回复应运行自动检测：
 
 ```bash
-# Layer 1: 正则 + LLM 混合检测
+# Layer 1: 正则 + LLM 混合检测（自动读取 OpenClaw 网关 API 配置）
 echo "草稿回复" | python3 ~/.openclaw/skills/c3-capability-calibrator/scripts/judge.py
 
 # Layer 2: 工具调用一致性（有工具调用时）
